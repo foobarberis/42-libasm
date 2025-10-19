@@ -1,55 +1,69 @@
-# libasm
+# Explanatory notes
 
-The **libasm** project is an introduction to assembly language programming. The goal is to write a library of basic functions in **x86-64 assembly** and understand how low-level programming works. This project will challenge you to think differently about how code is executed at the hardware level and how high-level languages like C interact with assembly.
+When C code calls an assembly function on Linux or macOS, it follows a strict set of rules known as a "Calling Convention." This is the most critical concept to understand.
 
----
+1.  **Argument Passing**: The first six integer or pointer arguments are passed in specific registers.
+    *   1st Argument: `RDI`
+    *   2nd Argument: `RSI`
+    *   3rd Argument: `RDX`
+    *   4th Argument: `RCX`
+    *   5th Argument: `R8`
+    *   6th Argument: `R9`
 
-## Objectives
+2.  **Return Value**: The function's return value **must** be placed in the `RAX` register before executing the `ret` instruction.
 
-- Write a library of functions in x86-64 assembly.
-- Learn the basics of assembly language, including registers, instructions, and memory management.
-- Understand how to call assembly functions from C programs.
-- Implement common functions like `strlen`, `strcpy`, `strcmp`, and more in assembly.
-- Gain a deeper understanding of how low-level programming works.
+3.  **The Stack**: The stack is primarily used to temporarily save the state of registers before a function call (`push`) and restore them after (`pop`).
 
----
+### Core Registers Reference
 
-## Requirements
+These are the 64-bit general-purpose registers and their roles within this project. Note that you can access their smaller parts (e.g., `EAX` for 32-bit, `AL` for the lowest 8-bit).
 
-- **NASM**: Netwide Assembler for compiling assembly code.
-- **GCC**: GNU Compiler Collection for compiling C code.
-- **Make**: For automating the build process.
-- Basic knowledge of C programming and low-level concepts (registers, stack, etc.).
+| Register | Role in this Project                                  |
+| :------- | :---------------------------------------------------- |
+| **`RAX`**    | **Return Value** from functions & **Syscall Number**. |
+| **`RDI`**    | **1st Argument** (e.g., a string pointer, file descriptor). |
+| **`RSI`**    | **2nd Argument** (e.g., a source string, a buffer).   |
+| **`RDX`**    | **3rd Argument** (e.g., a size or count).             |
+| **`RCX`**    | Used as a temporary single-byte holder (`cl`).        |
+| **`R8`, `R9`** | Used for temporary storage (`r8b`, `r9b`).            |
 
----
+### Memory Access Syntax
 
-## Project Structure
+The code frequently uses the `[base + offset]` syntax to read from or write to memory.
 
-The project consists of implementing a set of functions in assembly and creating a static library (`libasm.a`) that can be linked with C programs. The functions to implement are:
+*   **`[rdi]`**: Accesses the memory at the address stored in `rdi` (dereferencing).
+*   **`[rdi + rax]`**: Accesses memory at the address calculated by adding the value in `rdi` (the base address) and the value in `rax` (the offset or index).
+*   **`BYTE [...]`**: Specifies that the operation should affect only a single byte (`char`).
 
-### Mandatory Functions
+### Instructions Used in the Project
 
-1. **ft_strlen**: Calculate the length of a string.
-2. **ft_strcpy**: Copy a string from source to destination.
-3. **ft_strcmp**: Compare two strings.
-4. **ft_write**: Write to a file descriptor (similar to the `write` system call).
-5. **ft_read**: Read from a file descriptor (similar to the `read` system call).
-6. **ft_strdup**: Duplicate a string (similar to the `strdup` function).
+#### Data Movement
+*   `mov`: Moves data between registers or between a register and memory.
+    *   *Example:* `mov r8b, BYTE [rdi + rax]` (Copy one byte from memory into the `r8b` register).
+*   `push`: Pushes a register's value onto the stack. Used to save a value before it's overwritten.
+*   `pop`: Pops a value from the stack into a register. Used to restore a saved value.
+*   `movsx`: **Move with Sign-Extend**. Copies a smaller signed value (like a `char`) to a larger register, correctly preserving its sign (positive or negative).
+    *   *Example:* `movsx rax, r8b` (Converts an 8-bit difference into a 64-bit return value for `ft_strcmp`).
 
-### Bonus Functions (Optional)
+#### Arithmetic & Logic
+*   `inc`: Increments a register by 1. Used for loop counters.
+*   `sub`: Subtracts the second operand from the first.
+    *   *Example:* `sub r8b, r9b` (Calculates the difference between two characters).
+*   `neg`: Negates a value (e.g., 5 becomes -5, -9 becomes 9). Used for `errno` handling.
+*   `xor`: Performs a bitwise XOR. `xor rax, rax` is a fast and common idiom for setting `rax` to 0.
+*   `test`: Performs a bitwise AND but only sets CPU flags. `test rax, rax` is an efficient way to check if `rax` is zero or negative.
 
-1. **ft_atoi_base**: Convert a string to an integer with a given base.
-2. **ft_list_push_front**: Add an element to the beginning of a linked list.
-3. **ft_list_size**: Calculate the size of a linked list.
-4. **ft_list_sort**: Sort a linked list.
-5. **ft_list_remove_if**: Remove elements from a linked list based on a condition.
+#### Control Flow (Jumps & Calls)
+*   `cmp`: Compares two operands by subtracting them internally and setting CPU flags. It does not store the result.
+*   `jmp`: Unconditional jump to a label.
+*   `je`: **Jump if Equal**. Jumps if the last `cmp` found the operands to be equal.
+*   `jne`: **Jump if Not Equal**. Jumps if the last `cmp` found the operands to be different.
+*   `js`: **Jump if Sign**. Jumps if the result of the last operation was negative. Used for syscall error checking.
+*   `call`: Calls a function (pushes the return address to the stack and jumps).
+*   `ret`: Returns from a function (pops the return address from the stack and jumps to it).
 
-
-## Resources
-
-![](docs/register_map.png)
-![](docs/parameters.png)
-
-[Calling convention](docs/calling_convention.pdf)
----
-
+#### System & Assembler Directives
+*   `syscall`: Triggers a kernel system call. The call number must be in `RAX`, and arguments in `RDI`, `RSI`, `RDX`, etc.
+*   `global <label>`: Makes a function label visible to the linker, allowing it to be called from other files (like C).
+*   `extern <label>`: Tells the assembler that a label is defined in another file (e.g., `malloc` from the C library).
+*   `section .text`: A directive that declares the following lines as executable code.
