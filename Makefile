@@ -1,110 +1,65 @@
-#*******************************  VARIABLES  **********************************#
+# --- Names ---
+NAME		= libasm.a
+TEST_NAME	= tests_bin
 
-NAME			=	libasm.a
-TEST_NAME		=	tests_bin
+# --- Tools & Flags ---
+AS		= nasm
+ASFLAGS	= -f elf64
+CC		= cc
+CFLAGS	= -Wall -Wextra -Werror
+AR		= ar
+ARFLAGS	= rcs
 
-# --------------- FILES --------------- #
+# --- Directories ---
+SRC_DIR		= src
+TEST_DIR	= test
+BUILD_DIR	= .build
+INCLUDE_DIR	= include
 
-LIST_ASM_SRC		=	\
-						ft_read.s				\
-						ft_strcmp.s				\
-						ft_strcpy.s				\
-						ft_strdup.s				\
-						ft_strlen.s				\
-						ft_write.s
+# --- Source Files ---
+ASM_SRCS	= $(wildcard $(SRC_DIR)/*.s)
+TEST_SRCS	= $(wildcard $(TEST_DIR)/*.c)
 
-LIST_TEST_SRC		=	\
-						ft_read.c				\
-						ft_strcmp.c				\
-						ft_strcpy.c				\
-						ft_strdup.c				\
-						ft_strlen.c				\
-						ft_write.c				\
-						main.c					\
-						utils.c
+# --- Object Files ---
+# Create object file paths inside the build directory, mirroring the source structure
+OBJS		= $(ASM_SRCS:$(SRC_DIR)/%.s=$(BUILD_DIR)/%.o)
+TEST_OBJS	= $(TEST_SRCS:$(TEST_DIR)/%.c=$(BUILD_DIR)/%.o)
 
-# ------------ DIRECTORIES ------------ #
+# --- Commands ---
+RM		= rm -rf
 
-DIR_BUILD		=	.build/
-DIR_SRC 		=	src/
-DIR_INCLUDE		=	include/
-DIR_TEST		=	test/
-DIR_LIB			=	lib/
-DIR_UTEST		=	$(DIR_LIB)utest/
+# --- Main Rules ---
+all: $(NAME)
 
-# ------------- SHORTCUTS ------------- #
+$(NAME): $(OBJS)
+	@$(AR) $(ARFLAGS) $@ $^
 
-OBJ				=	$(patsubst %.s, $(DIR_BUILD)%.o, $(SRC))
-DEP				=	$(patsubst %.s, $(DIR_BUILD)%.d, $(SRC))
-SRC				=	$(addprefix $(DIR_SRC), $(LIST_ASM_SRC))
-TEST_SRC		=	$(addprefix $(DIR_TEST), $(LIST_TEST_SRC))
-TEST_DEP		=	$(patsubst %.c, $(DIR_BUILD)%.d, $(TEST_SRC))
-TEST_OBJ		=	$(patsubst %.c, $(DIR_BUILD)%.o, $(TEST_SRC))
-UTEST_INCLUDE	=	$(DIR_UTEST)
-
-# ------------ COMPILATION ------------ #
-
-AS				=	nasm
-ASFLAGS			=	-f elf64 -I $(DIR_SRC)
-
-CFLAGS			=	-Wall -Wextra -Werror
-
-DEP_FLAGS		=	-MMD -MP
-
-ARFLAGS			=	rcs
-
-# -------------  COMMANDS ------------- #
-
-RM				=	rm -rf
-MKDIR			=	mkdir -p
-
-#***********************************  RULES  **********************************#
-
-
-.PHONY: all
-all:			$(NAME)
-
-.PHONY: tests
 tests: $(TEST_NAME)
-				valgrind ./$(TEST_NAME)
+	@./$(TEST_NAME)
 
-$(TEST_NAME):	$(TEST_OBJ) $(NAME)
-				$(CC) $(CFLAGS) $(TEST_OBJ) -L. -lasm -o $(TEST_NAME)
+# --- Test Executable Rule ---
+$(TEST_NAME): $(TEST_OBJS) $(NAME)
+	@$(CC) $(CFLAGS) $(TEST_OBJS) -L. -lasm -o $(TEST_NAME)
 
-# ---------- VARIABLES RULES ---------- #
+# --- Compilation Pattern Rules ---
+# Rule to compile .s files from src/ into .o files in .build/
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.s
+	@mkdir -p $(BUILD_DIR)
+	@$(AS) $(ASFLAGS) $< -o $@
 
-$(NAME):		$(OBJ)
-				$(AR) $(ARFLAGS) $(NAME) $(OBJ)
+# Rule to compile .c files from test/ into .o files in .build/
+$(BUILD_DIR)/%.o: $(TEST_DIR)/%.c
+	@mkdir -p $(BUILD_DIR)
+	@$(CC) $(CFLAGS) -I$(INCLUDE_DIR) -c $< -o $@
 
-# ---------- COMPILED RULES ----------- #
-
--include $(DEP)
-$(DIR_BUILD)%.o: %.s
-				mkdir -p $(shell dirname $@)
-				$(AS) $(ASFLAGS) -MD $(@:.o=.d) $< -o $@
-
--include $(TEST_DEP)
-$(DIR_BUILD)%.o: %.c
-				mkdir -p $(shell dirname $@)
-				$(CC) $(CFLAGS) $(DEP_FLAGS) -c $< -o $@ -I $(DIR_INCLUDE) -I $(UTEST_INCLUDE)
-
-.PHONY: clean
+# --- Cleaning Rules ---
 clean:
-				$(RM) $(DIR_BUILD)
+	@$(RM) $(BUILD_DIR)
 
-.PHONY: fclean
 fclean: clean
-				$(RM) $(NAME)
-				$(RM) $(TEST_NAME)
+	@$(RM) $(NAME)
+	@$(RM) $(TEST_NAME)
 
-.PHONY: re
-re:				fclean
-				$(MAKE) all
+re: fclean all
 
-.PHONY: check-format
-check-format:
-				clang-format -style=file $(TEST_SRC) -n --Werror
-
-.PHONY: format
-format:
-				clang-format -style=file $(TEST_SRC) -i
+.PHONY: all tests clean fclean re
